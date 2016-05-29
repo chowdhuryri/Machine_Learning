@@ -1,0 +1,156 @@
+###Practical Machine Learning Course Project: Prediction Assignment Writeup   
+#### Rafiqul Chowdhury ####  
+   
+     
+#### I. Background ####  
+
+Availability of modern computer equipment made easier to capture live human 
+activity data. Human activity recognition (HAR) is an emerging area of computer
+vision research and applications. The goal of the activity recognition is an 
+automated analysis/ interpretation of ongoing events related to the various
+human activity. The objective of this analysis is to identify a good prediction
+model based on the human activity dataset using machine learning techniques to 
+predict the outcome of a test data set.   
+
+A group of enthusiasts tech geeks who took measurements about the personal 
+activity of themselves regularly to improve their health, to find patterns 
+in their behavior. They collected data from accelerometers on the belt, 
+forearm, arm, and dumbells of 6 participants. Participants were asked to one 
+set of ten repetitions of the Unilateral  Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A); throwing the elbows
+to the front (Class B); lifting the dumbbell only halfway (Class C); 
+lowering the dumbbell only halfway (Class D) and throwing the hips to the front 
+(Class E).
+
+#### II. Data Preparation ####
+
+Following R code chunk shows the required R packages used for this project.
+
+```{r,echo=TRUE,cache=TRUE,message=FALSE}    
+library(knitr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(corrplot)
+library(e1071)
+```   
+
+*i) Reading and Splitting Data* 
+
+Following R codes reads the data and partitioned into training (trainDat-70% )  validation (testDat-30 %) data set.
+
+```{r,echo=TRUE,cache=TRUE}    
+setwd("D:\\CoursERA\\Course8ML\\Assignment")
+set.seed(543781)
+
+urlTrain <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+urlTest  <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training <- read.csv(url(urlTrain))
+testing  <- read.csv(url(urlTest))
+
+# create a partition with the training dataset
+inTrain  <- createDataPartition(training$classe, p=0.7, list=FALSE)
+trainDat <- training[inTrain, ]
+testDat  <- training[-inTrain, ]
+
+dim(trainDat)
+dim(testDat)
+```   
+
+*ii) Removing Nearly Zero Variance Predictors and with NA's*   
+
+The data set consists of one class label and 159 features. Many of the features
+have NA's. The caret function  *nearZeroVar* is used to diagnoses predictors that
+have one unique value (i.e. are zero variance predictors). Now the total number of columns in the dat sets reduces to 104.
+
+```{r,echo=TRUE,cache=TRUE}   
+nearZvar <- nearZeroVar(trainDat)
+trainDat <- trainDat[, -nearZvar]
+testDat  <- testDat[, -nearZvar]
+dim(trainDat)
+dim(testDat)
+```   
+
+Following R codes are used to identify which features has mean zero after removing NA's and selected features without zero means. Also, first, five features are removed as those are the part of ID. Now we have total 54 columns in both the datasets.
+
+```{r,echo=TRUE}   
+table(data.frame(sapply(trainDat, function(x) mean(is.na(x)))))
+varNA    <- sapply(trainDat, function(x) mean(is.na(x))) > 0.95
+trainDat <- trainDat[, varNA==FALSE]
+testDat  <- testDat[, varNA==FALSE] 
+trainDat <- trainDat[, -(1:5)]
+testDat  <- testDat[, -(1:5)]
+
+dim(trainDat)
+dim(testDat)
+```   
+
+#### III. Models for Predictions ####   
+
+To identify best prediction model three models have been fitted. Tose are i) Random Forest, ii) Decision Tree and iii)  Generalized Boosted Model. Following are R codes fits these models.
+
+*i) Random Forest*   
+
+```{r,echo=TRUE,cache=TRUE,message=FALSE}
+set.seed(543781)
+conRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modFitRF <- train(classe ~ ., data=trainDat, method="rf",
+                          trControl=conRF)
+modFitRF$finalModel   
+```    
+
+Following R codes are used for prediction on test dataset using fitted Random 
+Forest model and compute confusion matrix.
+
+```{r,echo=TRUE,cache=TRUE}
+predictRF <- predict(modFitRF, newdata=testDat)
+confMRF <- confusionMatrix(predictRF, testDat$classe)
+confMRF
+```   
+
+*ii) Decision Trees*
+
+```{r,echo=TRUE,cache=TRUE,message=FALSE}
+set.seed(543781)
+modFitDT <- rpart(classe ~ ., data=trainDat, method="class")
+#fancyRpartPlot(modFitDT)
+```   
+
+Following R codes are used for prediction on test dataset using fitted Decision
+Tree model and compute confusion matrix.
+
+```{r,echo=TRUE,cache=TRUE}
+predictDT <- predict(modFitDT, newdata=testDat, type="class")
+confMDT   <- confusionMatrix(predictDT, testDat$classe)
+confMDT
+```   
+
+*iii) Generalized Boosted Model*
+
+```{r,echo=TRUE,cache=TRUE, message=FALSE}
+set.seed(543781)
+conGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modFitGBM  <- train(classe ~ ., data=trainDat, method = "gbm",
+                    trControl = conGBM, verbose = FALSE)
+#modFitGBM$finalModel
+```   
+
+Following R codes are used for prediction on test dataset using fitted Generalized Boosted Model model and compute confusion matrix.
+
+```{r,echo=TRUE,cache=TRUE}
+predictGBM <- predict(modFitGBM, newdata=testDat)
+confMGBM <- confusionMatrix(predictGBM, testDat$classe)
+confMGBM
+```   
+
+####IV. Prediction of class for 20 test samples####
+
+The accuracy of the Random Forest Model is the highest (0.9888), followed by GBM (.9884) and Decision Tree (.7322), respectively. Random Forest model is used to predict 20 test cases. Following codes produce the necessary prediction.
+
+```{r,echo=TRUE,cache=TRUE}   
+prdTEST <- predict(modFitRF, newdata=testing)   
+prdTEST
+```
+
